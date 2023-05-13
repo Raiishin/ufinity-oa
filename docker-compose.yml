@@ -1,0 +1,40 @@
+version: '3.7'
+services:
+  database:
+    container_name: database
+    image: mariadb:10.8.3
+    restart: always
+    volumes:
+      - dbdata:/var/lib/mysql
+      - ./init:/docker-entrypoint-initdb.d
+    environment:
+      MYSQL_DATABASE: db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: example
+      MYSQL_ROOT_PASSWORD: example
+    ports:
+      - 33067:3306
+    networks:
+      - backend-network
+
+  phpmyadmin:
+    container_name: phpmyadmin
+    depends_on:
+      - database
+    image: phpmyadmin:5.2.0
+    restart: always
+    ports:
+      - 5801:80
+    environment:
+      PMA_USER: root
+      PMA_PASSWORD: example
+      PMA_HOST: database
+      MYSQL_ROOT_PASSWORD: example
+    networks:
+      - backend-network
+    
+volumes:
+  dbdata:
+networks:
+  backend-network:
+    driver: bridge
