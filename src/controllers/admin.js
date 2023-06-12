@@ -67,7 +67,7 @@ const registerNewStudents = async (req, res) => {
 			});
 		}
 
-		return res.json("Success");
+		return res.json({ message: "Success" });
 	} catch (error) {
 		return res.json({ message: error.message });
 	}
@@ -130,7 +130,7 @@ const suspendStudent = async (req, res) => {
 			});
 		});
 
-		return res.json(`Student ${studentEmail} has been successfully suspended.`);
+		return res.json({ message: `Student ${studentEmail} has been successfully suspended.` });
 	} catch (error) {
 		return res.json({ message: error.message });
 	}

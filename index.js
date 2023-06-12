@@ -1,9 +1,10 @@
 import express from "express";
 import cors from "cors";
 import mysql from "mysql";
-import AdminController from "./src/controllers/admin.js";
 
 import config from "./src/config/index.js";
+
+import AdminRoutes from "./src/routes/admin.js";
 
 const con = mysql.createConnection({
 	host: config.db.host,
@@ -34,17 +35,7 @@ app.listen(port, function () {
 	console.log("Application Started at: " + port);
 });
 
-const router = express.Router();
-
-router.post("/api/register", AdminController.registerNewStudents);
-
-router.get("/api/commonstudents", AdminController.retrieveCommonStudents);
-
-router.post("/api/suspend", AdminController.suspendStudent);
-
-router.post("/api/retrievefornotifications", AdminController.canReceiveTeacherNotification);
-
-app.use("/", router); //to use the routes
+app.use("/api/admin", AdminRoutes); //to use the routes
 
 con.connect((err) => {
 	try {
