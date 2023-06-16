@@ -1,60 +1,64 @@
-import { isArray } from "lodash-es";
-import config from "../config/index.js";
-import mysql from "mysql";
+const { isNull } = require("lodash");
 
-const con = mysql.createConnection({
-	host: config.db.host,
-	user: config.db.user,
-	password: config.db.password,
-	database: "db",
-	port: config.db.port,
-});
+const sequelize = require("../database/index.js");
+const Student = require("../database/models/Student.model.js")(sequelize);
+const Teacher = require("../database/models/Teacher.model.js")(sequelize);
+const RegistrationLog = require("../database/models/RegistrationLog.model.js")(sequelize);
+
+const {
+	registerNewStudentsSchema,
+	retrieveCommonStudentsSchema,
+	suspendStudentSchema,
+	canReceiveTeacherNotificationSchema,
+} = require("../helpers/validator.js");
+
+Student.hasMany(RegistrationLog, { as: "logs" });
+Teacher.hasMany(RegistrationLog, { as: "logs" });
+
+RegistrationLog.belongsTo(Student, { foreignKey: "studentId" });
+RegistrationLog.belongsTo(Teacher, { foreignKey: "teacherId" });
 
 const registerNewStudents = async (req, res) => {
-	const { teacher: teacherEmail, students } = req.body;
-
 	try {
-		// When this api is being called, studentEmails will likely be in a JSON string if the api is being called from an app
-		// As such, we'll check if it's in an array or string, and handle it accordingly
-		const studentEmails = !isArray(students) ? JSON.parse(students) : students;
+		// Validate req.body
+		const { teacher: teacherEmail, students } = registerNewStudentsSchema.parse(req.body);
 
-		for (let i = 0; i < studentEmails.length; i++) {
-			const studentEmail = studentEmails[i];
+		// Check if teacher exists
+		let teacher = await Teacher.findOne({ where: { email: teacherEmail } });
 
-			await new Promise((resolve, reject) => {
-				// Make SQL query to registration_log table
-				const checkIfStudentExistsQuery = `SELECT * FROM students WHERE email = '${studentEmail}'`;
-				con.query(checkIfStudentExistsQuery, (err, result) => {
-					if (err) reject(err);
+		// ASSUMPTION: If the teacher does not exist, we will create an entry in the db
+		if (isNull(teacher)) {
+			teacher = await Teacher.create({ email: teacherEmail, isActive: true });
+		}
 
-					// Check if student exists
-					if (result.length === 0) {
-						// If not, create new student
-						const insertStudentQuery = `INSERT INTO students (email, is_active) VALUES ('${studentEmail}', TRUE)`;
-						con.query(insertStudentQuery, (err, result) => {
-							if (err) reject(err);
-						});
-					} else {
-						const studentDetails = result[0];
+		for (let i = 0; i < students.length; i++) {
+			const studentEmail = students[i];
 
-						// Check if student is active
-						if (!studentDetails.is_active) {
-							// If student is not active, set is_active to TRUE
-							const updateStudentQuery = `UPDATE students SET is_active = TRUE WHERE email = ${studentEmail}`;
-							con.query(updateStudentQuery, (err, result) => {
-								if (err) reject(err);
-							});
-						}
-					}
-				});
+			// Check if student exists
+			let student = await Student.findOne({ where: { email: studentEmail } });
 
-				const insertRegistrationLogQuery = `INSERT INTO registration_logs (teacher_email, student_email, is_registered) VALUES ('${teacherEmail}', '${studentEmail}', TRUE)`;
-				con.query(insertRegistrationLogQuery, (err, result) => {
-					if (err) reject(err);
-				});
+			if (isNull(student)) {
+				student = await Student.create({ email: studentEmail, isActive: true });
+			} else {
+				student.isActive = true;
+				await student.save();
+			}
 
-				resolve();
+			// Check if registrationLog exists
+			let registrationLog = await RegistrationLog.findOne({
+				where: { studentId: student.dataValues.id, teacherId: teacher.dataValues.id },
 			});
+
+			if (isNull(registrationLog)) {
+				registrationLog = await RegistrationLog.create({
+					studentId: student.dataValues.id,
+					teacherId: teacher.dataValues.id,
+					isRegistered: true,
+				});
+			} else {
+				registrationLog.isRegistered = true;
+				await registrationLog.save();
+			}
 		}
 
 		return res.json({ message: "Success" });
@@ -64,25 +68,37 @@ const registerNewStudents = async (req, res) => {
 };
 
 const retrieveCommonStudents = async (req, res) => {
-	const { teacher: teacherEmails } = req.query;
-
 	try {
-		// If there is only 1, teacher will be a string
-		// If there is more than 1, teacher will be an array
-		// As such, we'll check if it's in an array or string, and handle it accordingly
-		const teacherEmailsArray = isArray(teacherEmails) ? teacherEmails : [teacherEmails];
-		const teacherEmailsArrayString = teacherEmailsArray.map((email) => `'${email}'`).join(",");
+		// Validate req.query
+		const { teacher: teacherEmails } = retrieveCommonStudentsSchema.parse(req.query);
 
-		const result = await new Promise((resolve, reject) => {
-			// Make SQL query to registration_log table
-			const commonStudentsQuery = `SELECT student_email FROM registration_logs WHERE teacher_email IN (${teacherEmailsArrayString}) AND is_registered = TRUE GROUP BY student_email HAVING COUNT(DISTINCT teacher_email) = ${teacherEmailsArray.length}`;
-			con.query(commonStudentsQuery, (err, result) => {
-				if (err) reject(err);
-				else resolve(result);
+		const queries = teacherEmails.map(async (teacherEmail) => {
+			const result = await RegistrationLog.findAll({
+				attributes: [],
+				include: [
+					{ model: Student, attributes: ["email"] },
+					{ model: Teacher, attributes: [], where: { email: teacherEmail } },
+				],
+				where: { isRegistered: true },
 			});
+
+			return result.map((entry) => entry.dataValues.student.dataValues.email);
 		});
 
-		const commonStudents = result.map((entry) => entry.student_email);
+		// Execute the queries in parallel
+		const results = await Promise.all(queries);
+
+		const teacherStudentObj = {};
+
+		for (let i = 0; i < teacherEmails.length; i++) {
+			const teacherEmail = teacherEmails[i];
+			teacherStudentObj[teacherEmail] = results[i];
+		}
+
+		// Sort out the common students
+		const commonStudents = Object.values(teacherStudentObj).reduce((acc, curr) => {
+			return acc.filter((value) => curr.includes(value));
+		});
 
 		return res.json({ students: commonStudents });
 	} catch (error) {
@@ -91,34 +107,25 @@ const retrieveCommonStudents = async (req, res) => {
 };
 
 const suspendStudent = async (req, res) => {
-	const { student: studentEmail } = req.body;
-
 	try {
-		await new Promise((resolve, reject) => {
-			// Make SQL query to registration_log table
-			const checkIfStudentExistsQuery = `SELECT * FROM students WHERE email = '${studentEmail}'`;
-			con.query(checkIfStudentExistsQuery, (err, result) => {
-				if (err) reject(err);
+		// Validate req.body
+		const { student: studentEmail } = suspendStudentSchema.parse(req.body);
 
-				// Check if student exists
-				if (result.length === 0) {
-					// If no, throw error
-					return res.json({ message: "Student does not exist." });
-				} else {
-					// Check if the student is already suspended
-					if (result[0].is_active === 1) {
-						// If yes, suspend student
-						const updateStudentQuery = `UPDATE students SET is_active = FALSE WHERE email = '${studentEmail}'`;
-						con.query(updateStudentQuery, (err, result) => {
-							if (err) reject(err);
-							resolve(result);
-						});
-					} else {
-						return res.json({ message: "Student has already been suspended." });
-					}
-				}
-			});
-		});
+		// Check if student exists
+		const student = await Student.findOne({ where: { email: studentEmail } });
+
+		// If student does not exist, return error message
+		if (isNull(student)) {
+			return res.status(400).send({ message: "Student does not exist." });
+		}
+
+		// If student is already inactive, return error message
+		if (!student.dataValues.isActive) {
+			return res.status(400).send({ message: "Student has already been suspended." });
+		}
+
+		student.isActive = false;
+		await student.save();
 
 		return res.json({ message: `Student ${studentEmail} has been successfully suspended.` });
 	} catch (error) {
@@ -127,11 +134,14 @@ const suspendStudent = async (req, res) => {
 };
 
 const canReceiveTeacherNotification = async (req, res) => {
-	const { teacher: teacherEmail, notification } = req.body;
-
-	const recipients = [];
-
 	try {
+		// Validate req.body
+		const { teacher: teacherEmail, notification } = canReceiveTeacherNotificationSchema.parse(
+			req.body
+		);
+
+		const recipients = [];
+
 		// Check if thare are any emails mentioned in the notification, indicated by "@"
 		if (notification.includes("@")) {
 			// Emails mentioned will receive regardless if they are registered with the teacher or not
@@ -144,19 +154,19 @@ const canReceiveTeacherNotification = async (req, res) => {
 			}
 		}
 
-		const result = await new Promise((resolve, reject) => {
-			const getRegisteredStudentsQuery = `SELECT DISTINCT(student_email) from registration_logs WHERE teacher_email = '${teacherEmail}' AND is_registered = TRUE`;
-			con.query(getRegisteredStudentsQuery, (err, result) => {
-				if (err) throw reject(err);
-
-				// Assuming the data structure is result = {student_email: []}
-				const studentEmails = result.map((entry) => entry.student_email);
-				resolve(studentEmails);
-			});
+		const result = await RegistrationLog.findAll({
+			attributes: [],
+			include: [
+				{ model: Student, attributes: ["email"] },
+				{ model: Teacher, attributes: [], where: { email: teacherEmail } },
+			],
+			where: { isRegistered: true },
 		});
 
+		const studentEmails = result.map((entry) => entry.student.email);
+
 		// Dedupe any repeated emails
-		const uniqueStudentEmails = [...new Set(recipients.concat(result))];
+		const uniqueStudentEmails = [...new Set(recipients.concat(studentEmails))];
 
 		return res.json({ recipients: uniqueStudentEmails });
 	} catch (error) {
@@ -164,7 +174,7 @@ const canReceiveTeacherNotification = async (req, res) => {
 	}
 };
 
-export default {
+module.exports = {
 	registerNewStudents,
 	retrieveCommonStudents,
 	suspendStudent,

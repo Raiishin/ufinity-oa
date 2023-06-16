@@ -1,5 +1,5 @@
-import express from "express";
-import AdminController from "../controllers/admin.js";
+const express = require("express");
+const AdminController = require("../controllers/admin.js");
 
 const router = express.Router();
 
@@ -11,4 +11,4 @@ router.post("/suspend", AdminController.suspendStudent);
 
 router.post("/retrievefornotifications", AdminController.canReceiveTeacherNotification);
 
-export default router;
+module.exports = router;

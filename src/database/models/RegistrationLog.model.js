@@ -6,6 +6,14 @@ const RegistrationLog = (sequelize) => {
 			type: DataTypes.BOOLEAN,
 			allowNull: false,
 		},
+		studentId: {
+			type: DataTypes.INTEGER,
+			allowNull: false,
+		},
+		teacherId: {
+			type: DataTypes.INTEGER,
+			allowNull: false,
+		},
 		createdAt: {
 			allowNull: false,
 			type: DataTypes.DATE,
