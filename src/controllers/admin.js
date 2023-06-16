@@ -10,16 +10,6 @@ const con = mysql.createConnection({
 	port: config.db.port,
 });
 
-// Sample student table
-// | id | email | is_active |
-// Example : | 1 | studentmary@gmail.com | 1 |
-// Example : | 2 | studentjohn@gmail.com | 0 |
-
-// Sample registration_log table
-// | id | teacher_email | student_email | is_registered |
-// Example : | 1 | teacher@email.com | student@email.com | 1 |
-// Example : | 2 | teacher@email.com | student@email.com | 0 |
-
 const registerNewStudents = async (req, res) => {
 	const { teacher: teacherEmail, students } = req.body;
 
@@ -33,14 +23,14 @@ const registerNewStudents = async (req, res) => {
 
 			await new Promise((resolve, reject) => {
 				// Make SQL query to registration_log table
-				const checkIfStudentExistsQuery = `SELECT * FROM student WHERE email = '${studentEmail}'`;
+				const checkIfStudentExistsQuery = `SELECT * FROM students WHERE email = '${studentEmail}'`;
 				con.query(checkIfStudentExistsQuery, (err, result) => {
 					if (err) reject(err);
 
 					// Check if student exists
 					if (result.length === 0) {
 						// If not, create new student
-						const insertStudentQuery = `INSERT INTO student (email, is_active) VALUES ('${studentEmail}', TRUE)`;
+						const insertStudentQuery = `INSERT INTO students (email, is_active) VALUES ('${studentEmail}', TRUE)`;
 						con.query(insertStudentQuery, (err, result) => {
 							if (err) reject(err);
 						});
@@ -50,7 +40,7 @@ const registerNewStudents = async (req, res) => {
 						// Check if student is active
 						if (!studentDetails.is_active) {
 							// If student is not active, set is_active to TRUE
-							const updateStudentQuery = `UPDATE student SET is_active = TRUE WHERE email = ${studentEmail}`;
+							const updateStudentQuery = `UPDATE students SET is_active = TRUE WHERE email = ${studentEmail}`;
 							con.query(updateStudentQuery, (err, result) => {
 								if (err) reject(err);
 							});
@@ -58,7 +48,7 @@ const registerNewStudents = async (req, res) => {
 					}
 				});
 
-				const insertRegistrationLogQuery = `INSERT INTO registration_log (teacher_email, student_email, is_registered) VALUES ('${teacherEmail}', '${studentEmail}', TRUE)`;
+				const insertRegistrationLogQuery = `INSERT INTO registration_logs (teacher_email, student_email, is_registered) VALUES ('${teacherEmail}', '${studentEmail}', TRUE)`;
 				con.query(insertRegistrationLogQuery, (err, result) => {
 					if (err) reject(err);
 				});
@@ -85,7 +75,7 @@ const retrieveCommonStudents = async (req, res) => {
 
 		const result = await new Promise((resolve, reject) => {
 			// Make SQL query to registration_log table
-			const commonStudentsQuery = `SELECT student_email from registration_log WHERE teacher_email IN (${teacherEmailsArrayString}) AND is_registered = TRUE GROUP BY student_email HAVING COUNT(DISTINCT teacher_email) = ${teacherEmailsArray.length}`;
+			const commonStudentsQuery = `SELECT student_email FROM registration_logs WHERE teacher_email IN (${teacherEmailsArrayString}) AND is_registered = TRUE GROUP BY student_email HAVING COUNT(DISTINCT teacher_email) = ${teacherEmailsArray.length}`;
 			con.query(commonStudentsQuery, (err, result) => {
 				if (err) reject(err);
 				else resolve(result);
@@ -106,7 +96,7 @@ const suspendStudent = async (req, res) => {
 	try {
 		await new Promise((resolve, reject) => {
 			// Make SQL query to registration_log table
-			const checkIfStudentExistsQuery = `SELECT * FROM student WHERE email = '${studentEmail}'`;
+			const checkIfStudentExistsQuery = `SELECT * FROM students WHERE email = '${studentEmail}'`;
 			con.query(checkIfStudentExistsQuery, (err, result) => {
 				if (err) reject(err);
 
@@ -118,7 +108,7 @@ const suspendStudent = async (req, res) => {
 					// Check if the student is already suspended
 					if (result[0].is_active === 1) {
 						// If yes, suspend student
-						const updateStudentQuery = `UPDATE student SET is_active = FALSE WHERE email = '${studentEmail}'`;
+						const updateStudentQuery = `UPDATE students SET is_active = FALSE WHERE email = '${studentEmail}'`;
 						con.query(updateStudentQuery, (err, result) => {
 							if (err) reject(err);
 							resolve(result);
@@ -155,7 +145,7 @@ const canReceiveTeacherNotification = async (req, res) => {
 		}
 
 		const result = await new Promise((resolve, reject) => {
-			const getRegisteredStudentsQuery = `SELECT DISTINCT(student_email) from registration_log WHERE teacher_email = '${teacherEmail}' AND is_registered = TRUE`;
+			const getRegisteredStudentsQuery = `SELECT DISTINCT(student_email) from registration_logs WHERE teacher_email = '${teacherEmail}' AND is_registered = TRUE`;
 			con.query(getRegisteredStudentsQuery, (err, result) => {
 				if (err) throw reject(err);
 

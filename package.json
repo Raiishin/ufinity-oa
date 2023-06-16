@@ -3,18 +3,27 @@
   "version": "1.0.0",
   "description": "A simple backend service that allows teachers to perform administrative tasks for their students",
   "main": "index.js",
-  "type": "module",
   "scripts": {
     "start": "node index.js",
-    "test": "jest"
+    "test": "jest",
+    "sequelize": "npx sequelize-cli --seeders-path ./src/database/seeders/ --models-path ./src/database/models/ --config ./src/config/config.json",
+    "database:setup": "node ./src/database/scripts/start.js",
+    "database:seed": "npm run sequelize db:seed:all",
+    "database:start": "npm run database:setup && npm run database:seed"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "cors": "^2.8.5",
+    "dotenv": "^16.2.0",
     "express": "^4.18.2",
     "jest": "^29.5.0",
     "lodash-es": "^4.17.21",
-    "mysql": "^2.18.1"
+    "mysql": "^2.18.1",
+    "mysql2": "^3.3.5",
+    "sequelize": "^6.32.0"
+  },
+  "devDependencies": {
+    "sequelize-cli": "^6.6.1"
   }
 }
