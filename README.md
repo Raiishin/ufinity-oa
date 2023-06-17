@@ -6,12 +6,14 @@ A simple backend service that allows teachers to perform administrative tasks fo
 - nodejs (npm)
 
 # Starting the service
-1. Start up the docker containers
+1. Create a .env file, referencing .env.example
+2. Start up the docker containers
    - mysql database
    - phpmyadmin
-2. Install the required packages by running the command ```npm install```
-3. Start up the backend app by running the command ```npm run start```
-4. You can start making queries to the backend!
+3. Install the required packages by running the command ```npm install```
+4. Setup the database ```npm run database:start```
+5. Start up the backend app by running the command ```npm run start```
+6. You can start making queries to the backend!
 
 # Sample Queries and Responses
 ## POST /api/register
