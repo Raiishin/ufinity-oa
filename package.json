@@ -21,7 +21,8 @@
     "lodash": "^4.17.21",
     "mysql": "^2.18.1",
     "mysql2": "^3.3.5",
-    "sequelize": "^6.32.0"
+    "sequelize": "^6.32.0",
+    "zod": "^3.21.4"
   },
   "devDependencies": {
     "sequelize-cli": "^6.6.1"
