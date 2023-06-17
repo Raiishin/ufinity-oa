@@ -150,14 +150,20 @@ const canReceiveTeacherNotification = async (req, res) => {
 			// 1st element in splitNotification is the message being sent
 			for (let i = 1; i < splitNotification.length; i++) {
 				const studentEmail = splitNotification[i];
-				recipients.push(studentEmail);
+
+				// Check if student exists
+				const student = await Student.findOne({ where: { email: studentEmail, isActive: true } });
+
+				if (!isNull(student)) {
+					recipients.push(studentEmail);
+				}
 			}
 		}
 
 		const result = await RegistrationLog.findAll({
 			attributes: [],
 			include: [
-				{ model: Student, attributes: ["email"] },
+				{ model: Student, attributes: ["email"], where: { isActive: true } },
 				{ model: Teacher, attributes: [], where: { email: teacherEmail } },
 			],
 			where: { isRegistered: true },

@@ -10,7 +10,7 @@ const appPort = process.env.PORT || 5001;
 
 app.use(cors());
 app.use(express.json());
-app.use("/api/admin", AdminRoutes); //to use the routes
+app.use("/api", AdminRoutes); //to use the routes
 
 app.listen(appPort, async () => {
 	console.log("Application Started at: " + appPort);
